@@ -6,43 +6,54 @@ namespace CosmosHelpers.Context
 {
   public static class CosmosExtensions
   {
-      public static async Task<Container> EnsureCollectionAsync(this Microsoft.Azure.Cosmos.Database database, object collection = null, string? optionalKey = null, string? optionalName = null, Type? type = null)
-    {
-      string? partitionKey = null;
-      string? collectionName = null;
+    public static async Task<Container> EnsureCollectionAsync(this Microsoft.Azure.Cosmos.Database database, object collection = null, string? optionalKey = null, string? optionalName = null, Type? type = null)
+ {
+   string? partitionKey = "/partitionKey";
+   string? collectionName = null;
 
-      if (collection != null)
-      {
-        var collectionType = collection.GetType();
+   if (collection != null)
+   {
+     var collectionType = collection.GetType();
 
-        partitionKey = collectionType.GetProperties()
-            .Where(p => p.GetCustomAttribute<JsonPropertyAttribute>()?.PropertyName == "partitionKey")
-            .Select(p => p.Name)
-            .FirstOrDefault();
+     //partitionKey = collectionType.GetProperties()
+     //    .Where(p => p.GetCustomAttribute<JsonPropertyAttribute>()?.PropertyName == "partitionKey")
+     //    .Select(p => p.Name)
+     //    .FirstOrDefault();
 
-        collectionName = string.IsNullOrEmpty(optionalName) ? collectionType.Name : optionalName;
-      }
+     collectionName = string.IsNullOrEmpty(optionalName) ? collectionType.Name : optionalName;
+   }
 
-      if (!string.IsNullOrEmpty(optionalKey))
-      {
-        partitionKey = optionalKey;
-      }
+   if (!string.IsNullOrEmpty(optionalKey))
+   {
+     partitionKey = $"/{optionalKey}";
+   }
 
-      if (type != null)
-      {
-        partitionKey = type.GetProperties()
-            .Where(p => p.GetCustomAttribute<JsonPropertyAttribute>()?.PropertyName == "partitionKey")
-            .Select(p => p.Name)
-            .FirstOrDefault();
+   if (type != null)
+   {
+     //partitionKey = type.GetProperties()
+     //    .Where(p => p.GetCustomAttribute<JsonPropertyAttribute>()?.PropertyName == "partitionKey")
+     //    .Select(p => p.Name)
+     //    .FirstOrDefault();
 
-        collectionName = string.IsNullOrEmpty(optionalName) ? type.Name : optionalName;
-      }
+     collectionName = string.IsNullOrEmpty(optionalName) ? type.Name : optionalName;
+   }
 
-      if (string.IsNullOrEmpty(partitionKey))
-        throw new Exception("Missing Partition Key. Consider adding a JsonPropertyAttribute with 'partitionKey' to your model.");
+   if (partitionKey == "/partitionKey")
+   {
+     bool HasPartitionKey(Type t) =>
+   t.GetProperties().Any(p => p.GetCustomAttribute<JsonPropertyAttribute>()?.PropertyName == "partitionKey");
 
-      return await database.CreateContainerIfNotExistsAsync(collectionName, "/" + partitionKey);
-    }
+     if (!HasPartitionKey(type ?? collection?.GetType()))
+     {
+       throw new Exception("The model is missing a property with [JsonProperty(PropertyName = \"partitionKey\")].");
+     }
+   }
+
+   if (string.IsNullOrEmpty(partitionKey))
+     throw new Exception("Missing Partition Key. Consider adding a JsonPropertyAttribute with 'partitionKey' to your model.");
+
+   return await database.CreateContainerIfNotExistsAsync(collectionName, partitionKey);
+ }
 
     public static async Task<List<T>> ToListAsync<T>(this Microsoft.Azure.Cosmos.Database database, QueryDefinition query, Container? container = null)
     {
